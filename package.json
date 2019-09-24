@@ -17,6 +17,7 @@
   },
   "homepage": "https://github.com/oyiadin/knowman-backend#readme",
   "dependencies": {
+    "cookie-parser": "^1.4.4",
     "express": "^4.17.1",
     "mongoose": "^5.7.1",
     "redis": "^2.8.0"

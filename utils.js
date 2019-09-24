@@ -1,11 +1,12 @@
 module.exports.checkToken = function (req, res, callback) {
-  var err;
   if (req.cookies.token) {
     client.get('token:'+req.cookies.token, (err, reply) => {
       if (err) {
         res.json({ err: err });
+        res.end();
       } else if (!reply) {
         res.json({ err: 'Invalid token' });
+        res.end();
       } else {
         callback(reply);
       }

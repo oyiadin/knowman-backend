@@ -71,6 +71,25 @@ router.delete('/', (req, res) => {
 });
 
 
+// User information
+router.get('/userInfo', (req, res) => {
+  utils.checkToken(req, res, (userId) => {
+    models.User.findOne({ _id: userId }, (err, user) => {
+      if (err) {
+        res.json({ err: err });
+      } else {
+        res.json({
+          user: {
+            username: user.username
+          }
+        });
+      }
+      res.end();
+    })
+  });
+});
+
+
 module.exports.registerTo = (app) => {
   app.use('/auth', router);
 };
