@@ -1,0 +1,24 @@
+{
+  "name": "knowman-backend",
+  "version": "1.0.0",
+  "description": "",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/oyiadin/knowman-backend.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/oyiadin/knowman-backend/issues"
+  },
+  "homepage": "https://github.com/oyiadin/knowman-backend#readme",
+  "dependencies": {
+    "express": "^4.17.1",
+    "mongoose": "^5.7.1",
+    "redis": "^2.8.0"
+  }
+}
