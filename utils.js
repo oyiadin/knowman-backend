@@ -1,3 +1,6 @@
+let config = require('./config.json');
+let client = require('redis').createClient(config.redis);
+
 module.exports.checkToken = function (req, res, callback) {
   if (req.cookies.token) {
     client.get('token:'+req.cookies.token, (err, reply) => {
