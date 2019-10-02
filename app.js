@@ -5,15 +5,20 @@ mongoose.connect(
   `${config.db}/${config.database}`,
   { useNewUrlParser: true });
 
-const express = require('express');
-const cookieParser = require('cookie-parser');
-const app = express();
+var express = require('express');
+var cookieParser = require('cookie-parser');
+var app = express();
+var server = require('http').createServer(app);
+var WebSocket = require('ws');
+var wsServer = new WebSocket.Server({ noServer: true, path: '/ws' });
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
 const controllers = require('./controllers');
-controllers.registerTo(app);
+controllers.registerTo(app, server, wsServer);
 
-app.listen(config.port, () => { console.log(`Server listening http://localhost:${config.port}`)});
+server.listen(config.port, () => {
+  console.log(`Server listening http://localhost:${config.port}`)
+});
