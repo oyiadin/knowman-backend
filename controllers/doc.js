@@ -12,25 +12,50 @@ var client = require('redis').createClient(config.redis);
 router.put('/', (req, res) => {
   utils.checkToken(req, res, (userId) => {
     const url = utils.rdnString(6);
-    const newDoc = {
-      url: url,
-      title: 'Untitled',
-      ownedBy: userId,
-      createdAt: Date.now,
-      updatedAt: Date.now,
-      permission: models._Permissions.pPublic,
-      category: null,
-      content: ''
-    };
-    models.Doc.create(newDoc, (err, doc) => {
+    const catUrl = req.body.cat;
+    models.Cat.findOne({ url: catUrl }, (err, cat) => {
       if (err) {
-        res.json({ err: err });
+        res.json({ err })
+      } else if (!cat) {
+        res.json({ err: 'No such category' })
       } else {
-        res.json({ msg: 'OK', newDoc: doc });
+        const newDoc = {
+          url: url,
+          title: 'Untitled',
+          ownedBy: userId,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          permission: models._Permissions.pPublic,
+          category: cat._id,
+          content: ''
+        };
+        models.Doc.create(newDoc, (err, doc) => {
+          if (err) {
+            res.json({ err: err });
+          } else {
+            res.json({ msg: 'OK', newDoc: doc });
+          }
+        })
       }
     })
   });
 });
+
+
+// Get some basic information of a document
+router.get('/:url', (req, res) => {
+  utils.checkToken(req, res, (userId) => {
+    models.Doc.findOne({ url: req.params.url }, (err, doc) => {
+      if (err) {
+        res.json({ err })
+      } else if (!doc) {
+        res.json({ err: 'No such document' })
+      } else {
+        res.json({ msg: 'OK', doc: doc })
+      }
+    })
+  })
+})
 
 
 // Delete a document
