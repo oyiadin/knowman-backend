@@ -2,7 +2,7 @@ let config = require('./config.json')
 let client = require('redis').createClient(config.redis)
 let errcode = require('./errcode.json')
 
-module.export.error = function (res, category, reason) {
+module.exports.error = function (res, category, reason) {
   console.log(category, reason)
   res.json({
     success: 'no',
@@ -14,7 +14,7 @@ module.export.error = function (res, category, reason) {
   })
 }
 
-module.export.success = function (res, ...optionalObject) {
+module.exports.success = function (res, ...optionalObject) {
   let responseObj = { success: 'yes' }
   if (optionalObject.length === 1) {
     Object.assign(responseObj, optionalObject)
