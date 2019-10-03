@@ -77,6 +77,8 @@ router.get('/userInfo', (req, res) => {
     models.User.findOne({ _id: userId }, (err, user) => {
       if (err) {
         res.json({ err: err });
+      } else if (!user) {
+        res.json({ err: 'No such user' });
       } else {
         res.json({
           user: {

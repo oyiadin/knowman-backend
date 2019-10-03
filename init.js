@@ -15,7 +15,7 @@ models.Cat.findOne({ url: 'root' }, (err, cat) => {
     models.Cat.create({
       title: 'Root',
       url: 'root',
-      parent: -1
+      parent: null
     });
     console.log('Root-category created');
   }
