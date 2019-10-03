@@ -7,30 +7,92 @@ let success = utils.success
 
 // Create a document
 router.put('/', (req, res) => {
-  utils.checkToken(req, res, (userId) => {
-    const url = utils.rdnString(6)
-    const catUrl = req.body.cat
-    models.Cat.findOne({ url: catUrl }, (err, cat) => {
+  if (!req.body.title || !req.body.permission || !req.body.category) {
+    error(res, 'dataInvalid', 'Please fill in all the required items.')
+  } else if (req.body.permission > 0o77 || req.body.permission < 0o00) {
+    error(res, 'dataInvalid', 'Invalid permission value.')
+  } else {
+    utils.checkToken(req, res, userId => {
+      let catPath = req.body.category
+      models.Cat.findOne({ path: catPath }, (err, cat) => {
+        if (err) {
+          error(res, 'unknownError', err)
+        } else if (!cat) {
+          error(res, 'dataNotFound', 'No such category.')
+        } else {
+          (function checkIfValid () {
+            let path = utils.rdnString(6)
+            models.Doc.findOne({ path }, (err, reply) => {
+              if (err) {
+                error(res, 'unknownError', err)
+              } else if (reply) {
+                checkIfValid()
+              } else {
+                let dataToBeCreated = {
+                  title: req.body.title,
+                  path,
+                  ownedBy: userId,
+                  createdAt: Date.now(),
+                  updatedAt: Date.now(),
+                  permission: req.body.permission,
+                  category: cat._id,
+                  content: ''
+                }
+                models.Doc.create(dataToBeCreated, (err, newDoc) => {
+                  if (err) {
+                    error(res, 'unknownError', err)
+                  } else {
+                    let responseData = {
+                      title: req.body.title,
+                      path
+                    }
+                    success({ newDoc: responseData })
+                  }
+                })
+              }
+            })
+          })()
+        }
+      })
+    })
+  }
+})
+
+// Get the detailed information of a document
+router.get('/:path', (req, res) => {
+  utils.checkToken(req, res, userId => {
+    models.Doc.findOne({ path: req.params.path }, (err, doc) => {
       if (err) {
         error(res, 'unknownError', err)
-      } else if (!cat) {
-        res.json({ err: 'No such category' })
+      } else if (!doc) {
+        error(res, 'dataNotFound', 'No such document.')
       } else {
-        const newDoc = {
-          url: url,
-          title: 'Untitled',
-          ownedBy: userId,
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
-          permission: models._Permissions.pPublic,
-          category: cat._id,
-          content: ''
-        }
-        models.Doc.create(newDoc, (err, doc) => {
+        models.User.findOne({ _id: doc.ownedBy }, (err, user) => {
           if (err) {
             error(res, 'unknownError', err)
+          } else if (!user) {
+            error(res, 'dataNotFound', 'No such ownedBy user, something went wrong.')
+            console.error("[ERROR] Something weird happened (it wasn't supposed to happen).")
           } else {
-            res.json({ msg: 'OK', newDoc: doc })
+            models.Cat.findOne({ _id: doc.category }, (err, cat) => {
+              if (err) {
+                error(res, 'unknownError', err)
+              } else if (!cat) {
+                error(res, 'dataNotFound', 'No such category, something went wrong.')
+                console.error("[ERROR] Something weird happened (it wasn't supposed to happen).")
+              } else {
+                let responseData = {
+                  title: doc.title,
+                  path: doc.path,
+                  ownedBy: user.username,
+                  createdAt: doc.createdAt,
+                  updatedAt: doc.updatedAt,
+                  permission: doc.permission,
+                  category: cat.path
+                }
+                success(responseData)
+              }
+            })
           }
         })
       }
@@ -38,58 +100,38 @@ router.put('/', (req, res) => {
   })
 })
 
-// Get some basic information of a document
-router.get('/:url', (req, res) => {
-  utils.checkToken(req, res, (userId) => {
-    models.Doc.findOne({ url: req.params.url }, (err, doc) => {
-      if (err) {
-        error(res, 'unknownError', err)
-      } else if (!doc) {
-        res.json({ err: 'No such document' })
-      } else {
-        res.json({ msg: 'OK', doc: doc })
-      }
-    })
-  })
-})
-
 // Delete a document
-router.delete('/:url', (req, res) => {
-  utils.checkToken(req, res, (userId) => {
-    models.Doc.findOne({ url: req.params.url }, (err, doc) => {
+router.delete('/:path', (req, res) => {
+  utils.checkToken(req, res, userId => {
+    models.Doc.findOne({ path: req.params.path }, (err, doc) => {
       if (err) {
         error(res, 'unknownError', err)
       } else if (!doc) {
-        res.json({ err: 'No such document' })
+        error(res, 'dataNotFound', 'No such document.')
       } else {
         if (doc.ownedBy === userId) {
-          models.Doc.deleteOne({ url: req.params.url }, (err) => {
+          models.Doc.deleteOne({ path: req.params.path }, (err) => {
             if (err) {
               error(res, 'unknownError', err)
             } else {
-              res.json({ msg: 'OK' })
+              success()
             }
           })
         } else {
-          res.json({ err: 'You are not allowed to delete this document' })
+          error(res, 'permissionRequired', 'More permission needed to delete this document.')
         }
       }
     })
   })
 })
 
-// Update the permission of a document
-router.post('/:url/permission', (req, res) => {
-  ;
-})
-
 // Fetch the list of history versions
-router.get('/:url/history/list', (req, res) => {
+router.get('/:path/history/list', (req, res) => {
   ;
 })
 
 // Fetch the info of a specific version
-router.get('/:url/history/:ver', (req, res) => {
+router.get('/:path/history/:ver', (req, res) => {
   ;
 })
 

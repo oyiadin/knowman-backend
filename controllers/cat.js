@@ -66,7 +66,6 @@ router.post('/:path', (req, res) => {
           dataToBeUpdated[key] = req.body[key]
         }
       }
-
       function doUpdate () {
         models.Cat.update(filter, dataToBeUpdated, (err, cat) => {
           if (err) {
@@ -78,7 +77,6 @@ router.post('/:path', (req, res) => {
           }
         })
       }
-
       function checkPath (successCallback) {
         if (req.body.path) {
           models.Cat.findOne({ path: req.body.path }, (err, cat) => {
@@ -94,48 +92,69 @@ router.post('/:path', (req, res) => {
           successCallback()
         }
       }
-
       function checkParent (successCallback) {
         if (req.body.parent) {
-          models.Cat.findOne({}) // TODO: unfinished
+          models.Cat.findOne({ path: req.body.parent }, (err, parentCat) => {
+            if (err) {
+              error(res, 'unknownError', err)
+            } else if (!parentCat) {
+              error(res, 'dataNotFound', 'No such parent category')
+            } else {
+              dataToBeUpdated.parent = parentCat._id
+              successCallback()
+            }
+          })
+        } else {
+          successCallback()
         }
       }
 
-      checkPath(checkParent(doUpdate))
+      checkPath(() => checkParent(doUpdate))
     })
   }
 })
 
 // Create a new category
 router.put('/:path', (req, res) => {
-  models.Cat.findOne({ path: req.params.path }, (err, parentCat) => {
-    if (err) {
-      error(res, 'unknownError', err)
-    } else if (!parentCat) {
-      res.json({ err: 'No such parent category' })
-    } else {
-      models.Cat.findOne({ path: req.body.path }, (err, cat) => {
-        if (err) {
-          error(res, 'unknownError', err)
-        } else if (cat) {
-          res.json({ err: 'The path has been taken' })
-        } else {
-          const newCat = {
-            title: req.body.title,
-            path: req.body.path,
-            parent: parentCat._id
-          }
-          models.Cat.create(newCat, (err, newcat) => {
+  if (!req.body.title || !req.body.parent) {
+    error(res, 'dataInvalid', 'Please fill in all the required items.')
+  } else {
+    models.Cat.findOne({ path: req.params.path }, (err, parentCat) => {
+      if (err) {
+        error(res, 'unknownError', err)
+      } else if (!parentCat) {
+        error(res, 'dataNotFound', 'No such parent-category.')
+      } else {
+        (function checkIfValid () {
+          let path = utils.rdnString(6)
+          models.Cat.findOne({ path }, (err, reply) => {
             if (err) {
               error(res, 'unknownError', err)
+            } else if (reply) {
+              checkIfValid()
             } else {
-              res.json({ msg: 'OK' })
+              let dataToBeCreated = {
+                title: req.body.title,
+                path: path,
+                parent: parentCat._id
+              }
+              models.Cat.create(dataToBeCreated, (err, newCat) => {
+                if (err) {
+                  error(res, 'unknownError', err)
+                } else {
+                  let responseData = {
+                    title: newCat.title,
+                    path: newCat.path
+                  }
+                  success({ newCat: responseData })
+                }
+              })
             }
           })
-        }
-      })
-    }
-  })
+        })()
+      }
+    })
+  }
 })
 
 module.exports.registerTo = (app) => {
