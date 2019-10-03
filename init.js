@@ -1,22 +1,22 @@
-const mongoose = require('mongoose');
-const config = require('./config.json');
+const mongoose = require('mongoose')
+const config = require('./config.json')
 mongoose.connect(
   `${config.db}/${config.database}`,
-  { useNewUrlParser: true });
+  { useNewUrlParser: true })
 
-var models = require('./models');
+var models = require('./models')
 
 models.Cat.findOne({ url: 'root' }, (err, cat) => {
   if (err) {
-    console.log(`Error occurred during finding root-category: ${err}`);
+    console.log(`Error occurred during finding root-category: ${err}`)
   } else if (cat) {
-    console.log('Root-category already existed');
+    console.log('Root-category already existed')
   } else {
     models.Cat.create({
       title: 'Root',
       url: 'root',
       parent: null
-    });
-    console.log('Root-category created');
+    })
+    console.log('Root-category created')
   }
-});
+})

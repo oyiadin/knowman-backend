@@ -1,13 +1,13 @@
-const config = require('../config.json');
-var client = require('redis').createClient(config.redis);
+const config = require('../config.json')
+var client = require('redis').createClient(config.redis)
 
-var cookie = require('cookie');
-var models = require('../models');
+var cookie = require('cookie')
+var models = require('../models')
 
-let perDocumentClients = {};
+let perDocumentClients = {}
 
-function registerDocumentClient(ws) {
-  let doc = ws.doc;
+function registerDocumentClient (ws) {
+  let doc = ws.doc
   if (perDocumentClients[doc] === undefined) {
     perDocumentClients[doc] = [ws]
   } else {
@@ -17,18 +17,18 @@ function registerDocumentClient(ws) {
   ws.json({ inform: 'registered' })
 }
 
-function removeDocumentClient(ws) {
+function removeDocumentClient (ws) {
   perDocumentClients[ws.doc].splice(perDocumentClients[ws.doc].indexOf(ws), 1)
 }
 
-function dispatch(ws, payload, userId) {
+function dispatch (ws, payload, userId) {
   if (!ws.registered) {
     ws.json({ err: 'unregistered' })
   } else {
-    let e = JSON.parse(payload);
+    let e = JSON.parse(payload)
 
-    console.log(payload);
-    console.log(`==> from doc=${ws.doc}, user=${userId}`);
+    console.log(payload)
+    console.log(`==> from doc=${ws.doc}, user=${userId}`)
 
     if (e.action === 'update' && e.content) {
       let updatedDoc = {
@@ -38,7 +38,7 @@ function dispatch(ws, payload, userId) {
         if (err) {
           ws.json({ err })
         } else {
-          perDocumentClients[ws.doc].forEach((client) => {
+          perDocumentClients[ws.doc].forEach(client => {
             if (client !== ws) {
               client.json(e)
             }
@@ -51,47 +51,55 @@ function dispatch(ws, payload, userId) {
 
 module.exports.registerTo = (httpServer, wsServer) => {
   httpServer.on('upgrade', (req, socket, head) => {
-    var cookies = req.headers.cookie;
-    var token = cookie.parse(cookies).token;
-    const path = require('url').parse(req.url).pathname;
+    var cookies = req.headers.cookie
+    var token = cookie.parse(cookies).token
+    let url = require('url')
+    let URL = new url.URL(req.url)
+    const path = URL.pathname
     if (token) {
-      client.get('token:'+token, (err, userId) => {
+      client.get('token:' + token, (err, userId) => {
         if (err || !userId) {
-          console.log(`no such userId: ${userId}`);
-          socket.destroy();
+          console.log(`no such userId: ${userId}`)
+          socket.destroy()
         } else {
           if (path.slice(0, 8) !== '/ws/doc/') {
-            console.log(`unsupported path: ${path}`);
-            socket.destroy();
+            console.log(`unsupported path: ${path}`)
+            socket.destroy()
           } else {
-            let doc = path.slice(8);
+            let doc = path.slice(8)
             models.Doc.findOne({ url: doc }, (err, reply) => {
               if (err || !reply) {
                 console.log(`no such doc: ${doc}`)
-                socket.destroy();
+                socket.destroy()
               } else {
-                wsServer.handleUpgrade(req, socket, head, (ws) => {
-                  function errorHandler(err) {
-                    console.log(`websocket error: ${err}`);
+                wsServer.handleUpgrade(req, socket, head, ws => {
+                  function errorHandler (err) {
+                    console.log(`websocket error: ${err}`)
                     removeDocumentClient(ws)
                   }
-                  ws.json = (obj) => { ws.send(JSON.stringify(obj)) }
+                  ws.json = obj => {
+                    ws.send(JSON.stringify(obj))
+                  }
                   ws.doc = doc
 
-                  ws.on('message', (msg) => { dispatch(ws, msg, userId) });
-                  ws.on('error', errorHandler);
-                  ws.on('close', (code, reason) => { errorHandler(code+reason) });
+                  ws.on('message', msg => {
+                    dispatch(ws, msg, userId)
+                  })
+                  ws.on('error', errorHandler)
+                  ws.on('close', (code, reason) => {
+                    errorHandler(code + reason)
+                  })
 
-                  registerDocumentClient(ws);
+                  registerDocumentClient(ws)
                 })
               }
             })
           }
         }
-      });
+      })
     } else {
-      console.log('token required');
-      socket.destroy();
+      console.log('token required')
+      socket.destroy()
     }
   })
-};
+}

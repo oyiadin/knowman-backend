@@ -1,0 +1,14 @@
+{
+  "dataInvalid": {
+    "description": "Invalid data was found. On most occasions it means that you've sent a request with bad data representation or value."
+  },
+  "dataConflict": {
+    "description": "Conflict data was found."
+  },
+  "dataNotFound": {
+    "description": "The requested data was not found on server."
+  },
+  "permissionRequired": {
+    "description": "The requested operation needs more permission but you haven't right now."
+  }
+}
