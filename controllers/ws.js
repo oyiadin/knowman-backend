@@ -30,11 +30,22 @@ function dispatch(ws, payload, userId) {
     console.log(payload);
     console.log(`==> from doc=${ws.doc}, user=${userId}`);
 
-    perDocumentClients[ws.doc].forEach((client) => {
-      if (client !== ws) {
-        client.json(e)
+    if (e.action === 'update' && e.content) {
+      let updatedDoc = {
+        content: e.content
       }
-    })
+      models.Doc.updateOne({ url: ws.doc }, updatedDoc, (err, result) => {
+        if (err) {
+          ws.json({ err })
+        } else {
+          perDocumentClients[ws.doc].forEach((client) => {
+            if (client !== ws) {
+              client.json(e)
+            }
+          })
+        }
+      })
+    }
   }
 }
 
@@ -66,7 +77,7 @@ module.exports.registerTo = (httpServer, wsServer) => {
                   }
                   ws.json = (obj) => { ws.send(JSON.stringify(obj)) }
                   ws.doc = doc
-      
+
                   ws.on('message', (msg) => { dispatch(ws, msg, userId) });
                   ws.on('error', errorHandler);
                   ws.on('close', (code, reason) => { errorHandler(code+reason) });
