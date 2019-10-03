@@ -1,9 +1,9 @@
-const models = require('../models')
+let models = require('../models')
+let utils = require('../utils')
+let router = require('express').Router()
 
-const express = require('express')
-var router = express.Router()
-
-const utils = require('../utils')
+let error = utils.error
+let success = utils.success
 
 // Create a document
 router.put('/', (req, res) => {
@@ -12,7 +12,7 @@ router.put('/', (req, res) => {
     const catUrl = req.body.cat
     models.Cat.findOne({ url: catUrl }, (err, cat) => {
       if (err) {
-        res.json({ err })
+        error(res, 'unknownError', err)
       } else if (!cat) {
         res.json({ err: 'No such category' })
       } else {
@@ -28,7 +28,7 @@ router.put('/', (req, res) => {
         }
         models.Doc.create(newDoc, (err, doc) => {
           if (err) {
-            res.json({ err: err })
+            error(res, 'unknownError', err)
           } else {
             res.json({ msg: 'OK', newDoc: doc })
           }
@@ -43,7 +43,7 @@ router.get('/:url', (req, res) => {
   utils.checkToken(req, res, (userId) => {
     models.Doc.findOne({ url: req.params.url }, (err, doc) => {
       if (err) {
-        res.json({ err })
+        error(res, 'unknownError', err)
       } else if (!doc) {
         res.json({ err: 'No such document' })
       } else {
@@ -58,14 +58,14 @@ router.delete('/:url', (req, res) => {
   utils.checkToken(req, res, (userId) => {
     models.Doc.findOne({ url: req.params.url }, (err, doc) => {
       if (err) {
-        res.json({ err: err })
+        error(res, 'unknownError', err)
       } else if (!doc) {
         res.json({ err: 'No such document' })
       } else {
         if (doc.ownedBy === userId) {
           models.Doc.deleteOne({ url: req.params.url }, (err) => {
             if (err) {
-              res.json({ err: err })
+              error(res, 'unknownError', err)
             } else {
               res.json({ msg: 'OK' })
             }

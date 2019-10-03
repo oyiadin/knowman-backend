@@ -2,7 +2,7 @@ const mongoose = require('mongoose')
 
 let Cat = mongoose.model('Cat', {
   title: String,
-  url: String,
+  path: String,
   parent: mongoose.ObjectId
 })
 

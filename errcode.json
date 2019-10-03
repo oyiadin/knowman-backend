@@ -8,7 +8,13 @@
   "dataNotFound": {
     "description": "The requested data was not found on server."
   },
+  "operationInvalid": {
+    "description": "You cannot excute the requested operation in this situation."
+  },
   "permissionRequired": {
     "description": "The requested operation needs more permission but you haven't right now."
+  },
+  "unknownError": {
+    "description": "Miscellaneous"
   }
 }

@@ -1,40 +1,52 @@
-const models = require('../models')
+let models = require('../models')
+let utils = require('../utils')
+let router = require('express').Router()
 
-const express = require('express')
-var router = express.Router()
+let error = utils.error
+let success = utils.success
 
-// Get the sub-categories of a specific category
-router.get('/:url/subcats', (req, res) => {
-  models.Cat.findOne({ url: req.params.url }, (err, cat) => {
+// Get the sub-categories, sub-documents and other information of a specific category
+router.get('/:path/children', (req, res) => {
+  models.Cat.findOne({ path: req.params.path }, (err, cat) => {
     if (err) {
-      res.json({ err: err })
+      error(res, 'unknownError', err)
     } else if (!cat) {
-      res.json({ err: 'No such category' })
+      error(res, 'dataNotFound', 'No such category')
     } else {
       models.Cat.find({ parent: cat._id }, (err, subcats) => {
         if (err) {
-          res.json({ err: err })
+          error(res, 'unknownError', err)
         } else {
-          res.json({ subcats: subcats })
-        }
-      })
-    }
-  })
-})
-
-// Fetch the list of documents belonging to a specific category
-router.get('/:url/docs', (req, res) => {
-  models.Cat.findOne({ url: req.params.url }, (err, cat) => {
-    if (err) {
-      res.json({ err: err })
-    } else if (!cat) {
-      res.json({ err: 'No such category' })
-    } else {
-      models.Doc.find({ category: cat._id }, (err, docs) => {
-        if (err) {
-          res.json({ err: err })
-        } else {
-          res.json({ docs: docs })
+          models.Doc.find({ category: cat._id }, (err, subdocs) => {
+            if (err) {
+              error(res, 'unknownError', err)
+            } else {
+              let parents = [];
+              (function pushParents (cat, depth, callback) {
+                if (depth && cat.parent) {
+                  models.Cat.findOne({ _id: cat.parent }, (err, parent) => {
+                    if (err) {
+                      error(res, 'unknownError', err)
+                    } else if (!parent) {
+                      error(res, 'dataNotFound', 'No such parent-category, something went wrong.')
+                      console.error("[ERROR] Something weird happened (it wasn't supposed to happen).")
+                    } else {
+                      let dataToPush = {
+                        title: parent.title,
+                        path: parent.path
+                      }
+                      parents.push(dataToPush)
+                      pushParents(parent, depth - 1, callback)
+                    }
+                  })
+                } else {
+                  callback()
+                }
+              })(cat, 3, () => {
+                success({ subdocs, subcats, parents })
+              })
+            }
+          })
         }
       })
     }
@@ -42,44 +54,80 @@ router.get('/:url/docs', (req, res) => {
 })
 
 // Update the info of a specific category
-router.post('/:url', (req, res) => {
-  let updated = {
-    title: req.body.title,
-    url: req.body.url
+router.post('/:path', (req, res) => {
+  if (!req.params.path || (!req.body.title && !req.body.path && !req.body.parent)) {
+    error(res, 'dataInvalid', 'Please fill in all the required items.')
+  } else {
+    utils.checkToken(req, res, userId => {
+      let filter = { path: req.params.path }
+      let dataToBeUpdated = {}
+      for (let key in ['title', 'path']) {
+        if (req.body[key] !== undefined) {
+          dataToBeUpdated[key] = req.body[key]
+        }
+      }
+
+      function doUpdate () {
+        models.Cat.update(filter, dataToBeUpdated, (err, cat) => {
+          if (err) {
+            error(res, 'unknownError', err)
+          } else if (!cat) {
+            error(res, 'dataNotFound', 'No such category.')
+          } else {
+            success()
+          }
+        })
+      }
+
+      function checkPath (successCallback) {
+        if (req.body.path) {
+          models.Cat.findOne({ path: req.body.path }, (err, cat) => {
+            if (err) {
+              error(res, 'unknownError', err)
+            } else if (cat) {
+              error(res, 'dataConflict', 'The requested new path was already been taken.')
+            } else {
+              successCallback()
+            }
+          })
+        } else {
+          successCallback()
+        }
+      }
+
+      function checkParent (successCallback) {
+        if (req.body.parent) {
+          models.Cat.findOne({}) // TODO: unfinished
+        }
+      }
+
+      checkPath(checkParent(doUpdate))
+    })
   }
-  models.Cat.update({ url: req.params.url }, updated, (err, cat) => {
-    if (err) {
-      res.json({ err: err })
-    } else if (!cat) {
-      res.json({ err: 'No such category' })
-    } else {
-      res.json({ msg: 'OK' })
-    }
-  })
 })
 
 // Create a new category
-router.put('/:url', (req, res) => {
-  models.Cat.findOne({ url: req.params.url }, (err, parentCat) => {
+router.put('/:path', (req, res) => {
+  models.Cat.findOne({ path: req.params.path }, (err, parentCat) => {
     if (err) {
-      res.json({ err: err })
+      error(res, 'unknownError', err)
     } else if (!parentCat) {
       res.json({ err: 'No such parent category' })
     } else {
-      models.Cat.findOne({ url: req.body.url }, (err, cat) => {
+      models.Cat.findOne({ path: req.body.path }, (err, cat) => {
         if (err) {
-          res.json({ err: err })
+          error(res, 'unknownError', err)
         } else if (cat) {
-          res.json({ err: 'The URL has been taken' })
+          res.json({ err: 'The path has been taken' })
         } else {
           const newCat = {
             title: req.body.title,
-            url: req.body.url,
+            path: req.body.path,
             parent: parentCat._id
           }
           models.Cat.create(newCat, (err, newcat) => {
             if (err) {
-              res.json({ err: err })
+              error(res, 'unknownError', err)
             } else {
               res.json({ msg: 'OK' })
             }

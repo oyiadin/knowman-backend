@@ -9,7 +9,7 @@ const _Permissions = {
 
 let Doc = mongoose.model('Docs', {
   title: String,
-  url: String,
+  path: String,
   ownedBy: { type: mongoose.ObjectId, ref: User },
   createdAt: Date,
   updatedAt: Date,

@@ -1,14 +1,14 @@
 const express = require('express')
 var apiRouter = express.Router()
 
-const auth = require('./auth')
+const cred = require('./cred')
 const post = require('./doc')
 const user = require('./cat')
 const data = require('./data')
 const ws = require('./ws')
 
 module.exports.registerTo = (app, httpServer, wsServer) => {
-  auth.registerTo(apiRouter)
+  cred.registerTo(apiRouter)
   user.registerTo(apiRouter)
   post.registerTo(apiRouter)
   data.registerTo(apiRouter)
