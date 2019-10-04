@@ -1,6 +1,8 @@
 let models = require('../models')
 let utils = require('../utils')
 let router = require('express').Router()
+let config = require('../config.json')
+let client = require('redis').createClient(config.redis)
 
 let error = utils.error
 let success = utils.success
@@ -60,68 +62,120 @@ router.put('/', (req, res) => {
 
 // Get the detailed information of a document
 router.get('/:path', (req, res) => {
-  utils.checkToken(req, res, userId => {
-    models.Doc.findOne({ path: req.params.path }, (err, doc) => {
-      if (err) {
-        error(res, 'unknownError', err)
-      } else if (!doc) {
-        error(res, 'dataNotFound', 'No such document.')
-      } else {
-        models.User.findOne({ _id: doc.ownedBy }, (err, user) => {
-          if (err) {
-            error(res, 'unknownError', err)
-          } else if (!user) {
-            error(res, 'dataNotFound', 'No such ownedBy user, something went wrong.')
-            console.error("[ERROR] Something weird happened (it wasn't supposed to happen).")
-          } else {
-            models.Cat.findOne({ _id: doc.category }, (err, cat) => {
-              if (err) {
-                error(res, 'unknownError', err)
-              } else if (!cat) {
-                error(res, 'dataNotFound', 'No such category, something went wrong.')
-                console.error("[ERROR] Something weird happened (it wasn't supposed to happen).")
-              } else {
-                let responseData = {
-                  title: doc.title,
-                  path: doc.path,
-                  ownedBy: user.username,
-                  createdAt: doc.createdAt,
-                  updatedAt: doc.updatedAt,
-                  permission: doc.permission,
-                  category: cat.path
-                }
-                success(responseData)
+  models.Doc.findOne({ path: req.params.path }, (err, doc) => {
+    if (err) {
+      error(res, 'unknownError', err)
+    } else if (!doc) {
+      error(res, 'dataNotFound', 'No such document.')
+    } else {
+      models.User.findOne({ _id: doc.ownedBy }, (err, user) => {
+        if (err) {
+          error(res, 'unknownError', err)
+        } else if (!user) {
+          error(res, 'dataNotFound', 'No such ownedBy user, something went wrong.')
+          console.error("[ERROR] Something weird happened (it wasn't supposed to happen).")
+        } else {
+          models.Cat.findOne({ _id: doc.category }, (err, cat) => {
+            if (err) {
+              error(res, 'unknownError', err)
+            } else if (!cat) {
+              error(res, 'dataNotFound', 'No such category, something went wrong.')
+              console.error("[ERROR] Something weird happened (it wasn't supposed to happen).")
+            } else {
+              let responseData = {
+                title: doc.title,
+                path: doc.path,
+                ownedBy: user.username,
+                createdAt: doc.createdAt,
+                updatedAt: doc.updatedAt,
+                permission: doc.permission,
+                category: cat.path
               }
-            })
-          }
-        })
-      }
-    })
+              if (req.cookies.token) {
+                client.get(req.cookies.token, (err, userId) => {
+                  if (err) {
+                    error(res, 'unknownError', err)
+                  } else if (userId) {
+                    if (userId === doc.ownedBy.toString()) {
+                      success(res, responseData)
+                    } else if (doc.permission & 0o40) {
+                      success(res, responseData)
+                    } else if (doc.permission === 0o00) {
+                      error(res, 'dataNotFound', 'No such category, something went wrong.')
+                    } else {
+                      error(res, 'permissionRequired', 'More permission needed to read the document.')
+                    }
+                  } else {
+                    error(res, 'dataInvalid', 'Invalid token.')
+                  }
+                })
+              } else {
+                if (doc.permission & 0o04) {
+                  success(res, responseData)
+                } else if (doc.permission === 0o00) {
+                  error(res, 'dataNotFound', 'No such category, something went wrong.')
+                } else {
+                  error(res, 'permissionRequired', 'More permission needed to read the document.')
+                }
+              }
+            }
+          })
+        }
+      })
+    }
   })
 })
 
 // Delete a document
 router.delete('/:path', (req, res) => {
-  utils.checkToken(req, res, userId => {
-    models.Doc.findOne({ path: req.params.path }, (err, doc) => {
+  function doDelete () {
+    models.Doc.deleteOne({ path: req.params.path }, (err) => {
       if (err) {
         error(res, 'unknownError', err)
-      } else if (!doc) {
-        error(res, 'dataNotFound', 'No such document.')
       } else {
-        if (doc.ownedBy === userId) {
-          models.Doc.deleteOne({ path: req.params.path }, (err) => {
-            if (err) {
-              error(res, 'unknownError', err)
-            } else {
-              success()
-            }
-          })
-        } else {
-          error(res, 'permissionRequired', 'More permission needed to delete this document.')
-        }
+        success()
       }
     })
+  }
+
+  models.Doc.findOne({ path: req.params.path }, (err, doc) => {
+    if (err) {
+      error(res, 'unknownError', err)
+    } else if (!doc) {
+      error(res, 'dataNotFound', 'No such document.')
+    } else {
+      if (req.cookies.token) {
+        client.get(req.cookies.token, (err, userId) => {
+          if (err) {
+            error(res, 'unknownError', err)
+          } else if (userId) {
+            if (doc.ownedBy === userId) {
+              doDelete()
+            } else if (doc.permission & 0o10) {
+              doDelete()
+            } else {
+              if (doc.permission === 0o00) {
+                error(res, 'dataNotFound', 'No such document.')
+              } else {
+                error(res, 'permissionRequired', 'More permission needed to delete the document.')
+              }
+            }
+          } else {
+            error(res, 'dataInvalid', 'Invalid token.')
+          }
+        })
+      } else {
+        if (doc.permission & 0o01) {
+          doDelete()
+        } else {
+          if (doc.permission === 0o00) {
+            error(res, 'dataNotFound', 'No such document.')
+          } else {
+            error(res, 'permissionRequired', 'More permission needed to delete the document.')
+          }
+        }
+      }
+    }
   })
 })
 

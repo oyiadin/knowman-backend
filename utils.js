@@ -2,7 +2,7 @@ let config = require('./config.json')
 let client = require('redis').createClient(config.redis)
 let errcode = require('./errcode.json')
 
-module.exports.error = function (res, category, reason) {
+function error (res, category, reason) {
   console.log(category, reason)
   res.json({
     success: 'no',
@@ -13,29 +13,30 @@ module.exports.error = function (res, category, reason) {
     }
   })
 }
+module.exports.error = error
 
-module.exports.success = function (res, ...optionalObject) {
+function success (res, ...optionalObject) {
   let responseObj = { success: 'yes' }
   if (optionalObject.length === 1) {
     Object.assign(responseObj, optionalObject)
   }
   res.json(responseObj)
 }
+module.exports.success = success
 
 module.exports.checkToken = function (req, res, callback) {
   if (req.cookies.token) {
-    client.get('token:' + req.cookies.token, (err, reply) => {
+    client.get(req.cookies.token, (err, reply) => {
       if (err) {
-        module.export.error(res, 'unknownError', err)
+        error(res, 'unknownError', err)
       } else if (!reply) {
-        res.json({ err: 'Invalid token' })
+        error(res, 'dataInvalid', 'Invalid token.')
       } else {
         callback(reply)
       }
     })
   } else {
-    res.json({ err: 'Token required' })
-    res.end()
+    error(res, 'dataInvalid', 'Token required.')
   }
 }
 

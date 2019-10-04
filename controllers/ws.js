@@ -1,86 +1,136 @@
-const config = require('../config.json')
-var client = require('redis').createClient(config.redis)
-
-var cookie = require('cookie')
-var models = require('../models')
+let config = require('../config.json')
+let errcode = require('../errcode.json')
+let url = require('url')
+let cookie = require('cookie')
+let client = require('redis').createClient(config.redis)
+let models = require('../models')
 
 let perDocumentClients = {}
 
 function registerDocumentClient (ws) {
-  let doc = ws.doc
-  if (perDocumentClients[doc] === undefined) {
-    perDocumentClients[doc] = [ws]
+  let path = ws.path
+  if (perDocumentClients[path] === undefined) {
+    perDocumentClients[path] = [ws]
   } else {
-    perDocumentClients[doc] = perDocumentClients[doc].concat(ws)
+    perDocumentClients[path] = perDocumentClients[path].concat(ws)
   }
   ws.registered = true
-  ws.json({ inform: 'registered' })
+  ws.inform('registered')
 }
 
 function removeDocumentClient (ws) {
-  perDocumentClients[ws.doc].splice(perDocumentClients[ws.doc].indexOf(ws), 1)
+  perDocumentClients[ws.path].splice(perDocumentClients[ws.path].indexOf(ws), 1)
 }
 
 function dispatch (ws, payload, userId) {
   if (!ws.registered) {
-    ws.json({ err: 'unregistered' })
+    ws.error('operationInvalid', "This WebSocket client hasn't been registered yet, wait a moment.")
   } else {
     let e = JSON.parse(payload)
+    console.log(payload, `==> path=${ws.path}, user=${userId}`)
 
-    console.log(payload)
-    console.log(`==> from doc=${ws.doc}, user=${userId}`)
-
-    if (e.action === 'update' && e.content) {
-      let updatedDoc = {
-        content: e.content
-      }
-      models.Doc.updateOne({ url: ws.doc }, updatedDoc, (err, result) => {
-        if (err) {
-          ws.json({ err })
-        } else {
-          perDocumentClients[ws.doc].forEach(client => {
-            if (client !== ws) {
-              client.json(e)
-            }
-          })
+    if (e.action === 'update') {
+      if (!e.content) {
+        ws.error('dataInvalid', 'Item `content` is required.')
+      } else if (!ws.pWrite) {
+        ws.error('permissionRequired', 'More permission needed to write to the document.')
+      } else {
+        let updatedDoc = {
+          content: e.content
         }
-      })
+        models.Doc.updateOne({ path: ws.path }, updatedDoc, (err) => {
+          if (err) {
+            ws.error('unknownError', err)
+          } else {
+            perDocumentClients[ws.path].forEach(client => {
+              if (client !== ws) {
+                client.inform('update', {
+                  content: e.content
+                })
+              }
+            })
+          }
+        })
+      }
+    } else if (e.action === 'read') {
+      if (!ws.pRead) {
+        ws.error('permissionRequired', 'More permission needed to read the document.')
+      } else {
+        models.Doc.findOne({ path: ws.path }, (err, doc) => {
+          if (err) {
+            ws.error('unknownError', err)
+          } else {
+            ws.success({
+              content: doc.content
+            })
+          }
+        })
+      }
     }
   }
 }
 
 module.exports.registerTo = (httpServer, wsServer) => {
   httpServer.on('upgrade', (req, socket, head) => {
-    var cookies = req.headers.cookie
-    var token = cookie.parse(cookies).token
-    let url = require('url')
-    let URL = new url.URL(req.url)
-    const path = URL.pathname
+    let token = cookie.parse(req.headers.cookie).token
+    let URL = new url.URL(req.path)
+    let pathname = URL.pathname
     if (token) {
-      client.get('token:' + token, (err, userId) => {
+      client.get(token, (err, userId) => {
         if (err || !userId) {
-          console.log(`no such userId: ${userId}`)
+          console.log(`err occurred ${err} or no such userId ${userId}`)
           socket.destroy()
         } else {
-          if (path.slice(0, 8) !== '/ws/doc/') {
-            console.log(`unsupported path: ${path}`)
+          if (pathname.slice(0, 8) !== '/ws/doc/') {
+            console.log(`unsupported path: ${pathname}`)
             socket.destroy()
           } else {
-            let doc = path.slice(8)
-            models.Doc.findOne({ url: doc }, (err, reply) => {
-              if (err || !reply) {
-                console.log(`no such doc: ${doc}`)
+            let path = pathname.slice(8)
+            models.Doc.findOne({ path }, (err, doc) => {
+              if (err || !doc) {
+                console.log(`no such doc: ${path}`)
+                socket.destroy()
+              } else if (userId !== doc.ownedBy.toString() && !(doc.permission & 0o60)) {
                 socket.destroy()
               } else {
                 wsServer.handleUpgrade(req, socket, head, ws => {
+                  if (doc.permission & 0o40) { ws.pRead = true } else { ws.pRead = false }
+                  if (doc.permission & 0o20) { ws.pWrite = true } else { ws.pWrite = false }
+
                   function errorHandler (err) {
                     console.log(`websocket error: ${err}`)
                     removeDocumentClient(ws)
                   }
-                  ws.json = obj => {
-                    ws.send(JSON.stringify(obj))
+                  ws.json = obj => { ws.send(JSON.stringify(obj)) }
+                  ws.error = function (category, reason) {
+                    ws.json({
+                      success: 'no',
+                      error: {
+                        category,
+                        reason,
+                        description: errcode[category]
+                      }
+                    })
                   }
-                  ws.doc = doc
+                  ws.success = function (...optionalObject) {
+                    let responseObj = { success: 'yes' }
+                    if (optionalObject.length === 1) {
+                      Object.assign(responseObj, optionalObject)
+                    }
+                    ws.json(responseObj)
+                  }
+                  ws.inform = function (what, ...optionalObject) {
+                    let responseObj = {
+                      success: 'yes',
+                      inform: what
+                    }
+                    if (optionalObject.length === 1) {
+                      Object.assign(responseObj, optionalObject)
+                    }
+                    ws.json(responseObj)
+                  }
+
+                  ws.path = path
 
                   ws.on('message', msg => {
                     dispatch(ws, msg, userId)
