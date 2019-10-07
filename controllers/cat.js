@@ -11,7 +11,7 @@ router.get('/:path/children', (req, res) => {
     if (err) {
       error(res, 'unknownError', err)
     } else if (!cat) {
-      error(res, 'dataNotFound', 'No such category')
+      error(res, 'dataNotFound', 'categoryNotFound', 'No such category')
     } else {
       models.Cat.find({ parent: cat._id }, (err, subcats) => {
         if (err) {
@@ -28,7 +28,7 @@ router.get('/:path/children', (req, res) => {
                     if (err) {
                       error(res, 'unknownError', err)
                     } else if (!parent) {
-                      error(res, 'dataNotFound', 'No such parent-category, something went wrong.')
+                      error(res, 'dataNotFound', 'parentNotFound', 'No such parent-category, something went wrong.')
                       console.error("[ERROR] Something weird happened (it wasn't supposed to happen).")
                     } else {
                       let dataToPush = {
@@ -43,7 +43,7 @@ router.get('/:path/children', (req, res) => {
                   callback()
                 }
               })(cat, 3, () => {
-                success({ subdocs, subcats, parents })
+                success(res, { subdocs, subcats, parents })
               })
             }
           })
@@ -56,7 +56,7 @@ router.get('/:path/children', (req, res) => {
 // Update the info of a specific category
 router.post('/:path', (req, res) => {
   if (!req.params.path || (!req.body.title && !req.body.path && !req.body.parent)) {
-    error(res, 'dataInvalid', 'Please fill in all the required items.')
+    error(res, 'dataInvalid', 'missingRequired', 'Please fill in all the required items.')
   } else {
     utils.checkToken(req, res, userId => {
       let filter = { path: req.params.path }
@@ -71,9 +71,9 @@ router.post('/:path', (req, res) => {
           if (err) {
             error(res, 'unknownError', err)
           } else if (!cat) {
-            error(res, 'dataNotFound', 'No such category.')
+            error(res, 'dataNotFound', 'categoryNotFound', 'No such category.')
           } else {
-            success()
+            success(res)
           }
         })
       }
@@ -83,7 +83,7 @@ router.post('/:path', (req, res) => {
             if (err) {
               error(res, 'unknownError', err)
             } else if (cat) {
-              error(res, 'dataConflict', 'The requested new path was already been taken.')
+              error(res, 'dataConflict', 'pathConflict', 'The requested new path was already been taken.')
             } else {
               successCallback()
             }
@@ -98,7 +98,7 @@ router.post('/:path', (req, res) => {
             if (err) {
               error(res, 'unknownError', err)
             } else if (!parentCat) {
-              error(res, 'dataNotFound', 'No such parent category')
+              error(res, 'dataNotFound', 'parentNotFound', 'No such parent category')
             } else {
               dataToBeUpdated.parent = parentCat._id
               successCallback()
@@ -117,13 +117,13 @@ router.post('/:path', (req, res) => {
 // Create a new category
 router.put('/:path', (req, res) => {
   if (!req.body.title || !req.body.parent) {
-    error(res, 'dataInvalid', 'Please fill in all the required items.')
+    error(res, 'dataInvalid', 'missingRequired', 'Please fill in all the required items.')
   } else {
     models.Cat.findOne({ path: req.params.path }, (err, parentCat) => {
       if (err) {
         error(res, 'unknownError', err)
       } else if (!parentCat) {
-        error(res, 'dataNotFound', 'No such parent-category.')
+        error(res, 'dataNotFound', 'parentNotFound', 'No such parent-category.')
       } else {
         (function checkIfValid () {
           let path = utils.rdnString(6)
@@ -146,7 +146,7 @@ router.put('/:path', (req, res) => {
                     title: newCat.title,
                     path: newCat.path
                   }
-                  success({ newCat: responseData })
+                  success(res, { newCat: responseData })
                 }
               })
             }

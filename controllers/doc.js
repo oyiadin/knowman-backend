@@ -10,9 +10,9 @@ let success = utils.success
 // Create a document
 router.put('/', (req, res) => {
   if (!req.body.title || !req.body.permission || !req.body.category) {
-    error(res, 'dataInvalid', 'Please fill in all the required items.')
+    error(res, 'dataInvalid', 'missingRequired', 'Please fill in all the required items.')
   } else if (req.body.permission > 0o77 || req.body.permission < 0o00) {
-    error(res, 'dataInvalid', 'Invalid permission value.')
+    error(res, 'dataInvalid', 'permissionInvalid', 'Invalid permission value.')
   } else {
     utils.checkToken(req, res, userId => {
       let catPath = req.body.category
@@ -20,7 +20,7 @@ router.put('/', (req, res) => {
         if (err) {
           error(res, 'unknownError', err)
         } else if (!cat) {
-          error(res, 'dataNotFound', 'No such category.')
+          error(res, 'dataNotFound', 'categoryNotFound', 'No such category.')
         } else {
           (function checkIfValid () {
             let path = utils.rdnString(6)
@@ -48,7 +48,7 @@ router.put('/', (req, res) => {
                       title: req.body.title,
                       path
                     }
-                    success({ newDoc: responseData })
+                    success(res, { newDoc: responseData })
                   }
                 })
               }
@@ -66,20 +66,20 @@ router.get('/:path', (req, res) => {
     if (err) {
       error(res, 'unknownError', err)
     } else if (!doc) {
-      error(res, 'dataNotFound', 'No such document.')
+      error(res, 'dataNotFound', 'documentNotFound', 'No such document.')
     } else {
       models.User.findOne({ _id: doc.ownedBy }, (err, user) => {
         if (err) {
           error(res, 'unknownError', err)
         } else if (!user) {
-          error(res, 'dataNotFound', 'No such ownedBy user, something went wrong.')
+          error(res, 'dataNotFound', 'ownedByUserNotFound', 'No such ownedBy user, something went wrong.')
           console.error("[ERROR] Something weird happened (it wasn't supposed to happen).")
         } else {
           models.Cat.findOne({ _id: doc.category }, (err, cat) => {
             if (err) {
               error(res, 'unknownError', err)
             } else if (!cat) {
-              error(res, 'dataNotFound', 'No such category, something went wrong.')
+              error(res, 'dataNotFound', 'categoryNotFound', 'No such category, something went wrong.')
               console.error("[ERROR] Something weird happened (it wasn't supposed to happen).")
             } else {
               let responseData = {
@@ -101,21 +101,21 @@ router.get('/:path', (req, res) => {
                     } else if (doc.permission & 0o40) {
                       success(res, responseData)
                     } else if (doc.permission === 0o00) {
-                      error(res, 'dataNotFound', 'No such category, something went wrong.')
+                      error(res, 'dataNotFound', 'categoryNotFound', 'No such category, something went wrong.')
                     } else {
-                      error(res, 'permissionRequired', 'More permission needed to read the document.')
+                      error(res, 'permissionRequired', 'permissionRequired', 'More permission needed to read the document.')
                     }
                   } else {
-                    error(res, 'dataInvalid', 'Invalid token.')
+                    error(res, 'dataInvalid', 'tokenInvalid', 'Invalid token.')
                   }
                 })
               } else {
                 if (doc.permission & 0o04) {
                   success(res, responseData)
                 } else if (doc.permission === 0o00) {
-                  error(res, 'dataNotFound', 'No such category, something went wrong.')
+                  error(res, 'dataNotFound', 'categoryNotFound', 'No such category, something went wrong.')
                 } else {
-                  error(res, 'permissionRequired', 'More permission needed to read the document.')
+                  error(res, 'permissionRequired', 'permissionRequired', 'More permission needed to read the document.')
                 }
               }
             }
@@ -133,7 +133,7 @@ router.delete('/:path', (req, res) => {
       if (err) {
         error(res, 'unknownError', err)
       } else {
-        success()
+        success(res)
       }
     })
   }
@@ -142,7 +142,7 @@ router.delete('/:path', (req, res) => {
     if (err) {
       error(res, 'unknownError', err)
     } else if (!doc) {
-      error(res, 'dataNotFound', 'No such document.')
+      error(res, 'dataNotFound', 'documentNotFound', 'No such document.')
     } else {
       if (req.cookies.token) {
         client.get(req.cookies.token, (err, userId) => {
@@ -155,13 +155,13 @@ router.delete('/:path', (req, res) => {
               doDelete()
             } else {
               if (doc.permission === 0o00) {
-                error(res, 'dataNotFound', 'No such document.')
+                error(res, 'dataNotFound', 'documentNotFound', 'No such document.')
               } else {
-                error(res, 'permissionRequired', 'More permission needed to delete the document.')
+                error(res, 'permissionRequired', 'permissionRequired', 'More permission needed to delete the document.')
               }
             }
           } else {
-            error(res, 'dataInvalid', 'Invalid token.')
+            error(res, 'dataInvalid', 'tokenInvalid', 'Invalid token.')
           }
         })
       } else {
@@ -169,9 +169,9 @@ router.delete('/:path', (req, res) => {
           doDelete()
         } else {
           if (doc.permission === 0o00) {
-            error(res, 'dataNotFound', 'No such document.')
+            error(res, 'dataNotFound', 'documentNotFound', 'No such document.')
           } else {
-            error(res, 'permissionRequired', 'More permission needed to delete the document.')
+            error(res, 'permissionRequired', 'permissionRequired', 'More permission needed to delete the document.')
           }
         }
       }

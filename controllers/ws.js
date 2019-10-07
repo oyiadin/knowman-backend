@@ -24,16 +24,16 @@ function removeDocumentClient (ws) {
 
 function dispatch (ws, payload, userId) {
   if (!ws.registered) {
-    ws.error('operationInvalid', "This WebSocket client hasn't been registered yet, wait a moment.")
+    ws.error('operationInvalid', 'notRegistered', "This WebSocket client hasn't been registered yet, wait a moment.")
   } else {
     let e = JSON.parse(payload)
     console.log(payload, `==> path=${ws.path}, user=${userId}`)
 
     if (e.action === 'update') {
       if (!e.content) {
-        ws.error('dataInvalid', 'Item `content` is required.')
+        ws.error('dataInvalid', 'missingRequired', 'Item `content` is required.')
       } else if (!ws.pWrite) {
-        ws.error('permissionRequired', 'More permission needed to write to the document.')
+        ws.error('permissionRequired', 'permissionRequired', 'More permission needed to write to the document.')
       } else {
         let updatedDoc = {
           content: e.content
@@ -54,7 +54,7 @@ function dispatch (ws, payload, userId) {
       }
     } else if (e.action === 'read') {
       if (!ws.pRead) {
-        ws.error('permissionRequired', 'More permission needed to read the document.')
+        ws.error('permissionRequired', 'permissionRequired', 'More permission needed to read the document.')
       } else {
         models.Doc.findOne({ path: ws.path }, (err, doc) => {
           if (err) {
@@ -102,11 +102,16 @@ module.exports.registerTo = (httpServer, wsServer) => {
                     removeDocumentClient(ws)
                   }
                   ws.json = obj => { ws.send(JSON.stringify(obj)) }
-                  ws.error = function (category, reason) {
+                  ws.error = function (category, reasonShort, reason) {
+                    if (reason === undefined) {
+                      reason = reasonShort
+                      reasonShort = category
+                    }
                     ws.json({
                       success: 'no',
                       error: {
                         category,
+                        reasonShort,
                         reason,
                         description: errcode[category]
                       }
